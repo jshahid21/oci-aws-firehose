@@ -4,17 +4,6 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Data Sources
-# -----------------------------------------------------------------------------
-data "oci_identity_tenancy" "root" {
-  tenancy_id = var.tenancy_ocid
-}
-
-data "oci_objectstorage_namespace" "ns" {
-  compartment_id = local.compartment_id
-}
-
-# -----------------------------------------------------------------------------
 # Locals - Resolved IDs
 # -----------------------------------------------------------------------------
 locals {
@@ -26,19 +15,10 @@ locals {
   vault_id       = var.create_vault ? oci_kms_vault.this[0].id : var.existing_vault_id
   key_id         = var.create_key ? oci_kms_key.this[0].id : var.existing_key_id
 
-  # Single lookup - resolves to created or existing vault (avoids conditional data source eval)
   vault_management_endpoint = data.oci_kms_vault.vault_lookup.management_endpoint
 
   aws_access_key_secret_id = var.create_aws_secrets ? oci_vault_secret.aws_access_key[0].id : var.existing_aws_access_key_secret_id
   aws_secret_key_secret_id = var.create_aws_secrets ? oci_vault_secret.aws_secret_key[0].id : var.existing_aws_secret_key_secret_id
-
-  function_app_id  = var.create_function_app ? oci_functions_application.this[0].id : var.existing_function_app_id
-  function_id      = var.create_function_app ? oci_functions_function.this[0].id : var.existing_function_id
-  bucket_namespace = var.create_bucket ? data.oci_objectstorage_namespace.ns.namespace : var.existing_bucket_namespace
-  source_bucket    = var.create_bucket ? oci_objectstorage_bucket.this[0].name : var.source_bucket_name
-
-  # OCIR image: region.ocir.io/tenancy_namespace/repo/image:tag
-  function_image = var.function_image != "" ? var.function_image : "${var.region}.ocir.io/${data.oci_identity_tenancy.root.object_storage_namespace}/oci-aws-firehose/firehose-handler:latest"
 }
 
 # -----------------------------------------------------------------------------
@@ -251,112 +231,3 @@ resource "oci_vault_secret" "aws_secret_key" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Object Storage Bucket
-# -----------------------------------------------------------------------------
-resource "oci_objectstorage_bucket" "this" {
-  count = var.create_bucket ? 1 : 0
-
-  compartment_id = local.compartment_id
-  namespace      = data.oci_objectstorage_namespace.ns.namespace
-  name           = var.source_bucket_name
-  access_type    = "ObjectRead"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Dynamic Group (for Resource Principals)
-# -----------------------------------------------------------------------------
-resource "oci_identity_dynamic_group" "firehose" {
-  compartment_id = var.tenancy_ocid
-  name           = "firehose-function-dg"
-  description    = "Dynamic group for OCI-to-AWS Firehose function"
-  matching_rule  = "ALL {resource.type = 'fnfunc', resource.compartment.id = '${local.compartment_id}'}"
-}
-
-# -----------------------------------------------------------------------------
-# Policies
-# -----------------------------------------------------------------------------
-resource "oci_identity_policy" "firehose" {
-  compartment_id = local.compartment_id
-  name           = "firehose-policy"
-  description    = "Policy for Firehose function: Object Storage read, Vault secret read"
-  statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.firehose.name} to read objectstorage-namespace in compartment id ${local.compartment_id}",
-    "Allow dynamic-group ${oci_identity_dynamic_group.firehose.name} to read buckets in compartment id ${local.compartment_id}",
-    "Allow dynamic-group ${oci_identity_dynamic_group.firehose.name} to read objectstorage-objects in compartment id ${local.compartment_id}",
-    "Allow dynamic-group ${oci_identity_dynamic_group.firehose.name} to manage vault-secrets in compartment id ${local.compartment_id} where target.vault.id = '${local.vault_id}'",
-    "Allow dynamic-group ${oci_identity_dynamic_group.firehose.name} to use keys in compartment id ${local.compartment_id} where target.key.id = '${local.key_id}'"
-  ]
-}
-
-# -----------------------------------------------------------------------------
-# Functions Application
-# -----------------------------------------------------------------------------
-resource "oci_functions_application" "this" {
-  count = var.create_function_app ? 1 : 0
-
-  compartment_id = local.compartment_id
-  display_name   = var.function_app_display_name
-  subnet_ids     = [local.subnet_id]
-}
-
-# -----------------------------------------------------------------------------
-# Function (deployed via OCI deploy - image referenced)
-# Note: Actual function code is deployed via 'fn deploy'. Terraform creates the
-# function resource; fn deploy pushes the image and updates the function.
-# -----------------------------------------------------------------------------
-resource "oci_functions_function" "this" {
-  count = var.create_function_app ? 1 : 0
-
-  application_id                     = oci_functions_application.this[0].id
-  display_name                       = var.function_display_name
-  image                              = local.function_image
-  memory_in_mbs                      = var.function_memory_mb
-  timeout_in_seconds                 = var.function_timeout_seconds
-  provisioned_concurrency_config {
-    strategy = "NONE"
-  }
-  trace_config {
-    is_enabled = false
-  }
-
-  config = {
-    OCI_SOURCE_BUCKET       = local.source_bucket
-    OCI_SOURCE_NAMESPACE    = var.create_bucket ? data.oci_objectstorage_namespace.ns.namespace : var.existing_bucket_namespace
-    AWS_S3_BUCKET           = var.aws_s3_bucket_name
-    AWS_S3_PREFIX           = var.aws_s3_prefix
-    AWS_REGION              = var.aws_region
-    AWS_ACCESS_KEY_SECRET_ID = local.aws_access_key_secret_id
-    AWS_SECRET_KEY_SECRET_ID = local.aws_secret_key_secret_id
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Events Rule - Trigger on Object Create
-# -----------------------------------------------------------------------------
-resource "oci_events_rule" "object_create" {
-  count = var.create_event_rule ? 1 : 0
-
-  compartment_id = local.compartment_id
-  display_name   = var.event_rule_display_name
-  description    = "Trigger Firehose function when object is created in source bucket"
-  is_enabled     = true
-
-  condition = jsonencode({
-    eventType = ["com.oraclecloud.objectstorage.createobject"]
-    data = {
-      resourceName = [local.source_bucket]
-    }
-  })
-
-  actions {
-    action_type = "FAAS"
-    is_enabled  = true
-    description = "Invoke Firehose function"
-    function_id = local.function_id
-  }
-}

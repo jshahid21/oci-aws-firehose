@@ -60,13 +60,14 @@ else
 fi
 echo ""
 
-# 4. Terraform init
-echo "--- Terraform init ---"
+# 4. OpenTofu init
+echo "--- OpenTofu init ---"
 cd "$INFRA_DIR"
-terraform init
+tofu init 2>/dev/null || terraform init
 echo ""
 echo "Done. Next steps:"
 echo "  1. Edit infra/terraform.tfvars with your values"
-echo "  2. terraform plan"
-echo "  3. terraform apply"
-echo "  4. fn deploy (see DEPLOY.md for OCI Registry auth)"
+echo "  2. tofu plan (or terraform plan)"
+echo "  3. tofu apply (or terraform apply)"
+echo ""
+echo "Note: For OCI-to-AWS sync with rclone (VM polling), use ../oci-rclone-sync"

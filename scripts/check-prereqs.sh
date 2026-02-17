@@ -25,10 +25,15 @@ check() {
 failed=0
 
 echo "=== Checking prerequisites ==="
-check terraform "terraform" "Install: https://developer.hashicorp.com/terraform/downloads" || failed=1
+if command -v tofu &>/dev/null; then
+  echo -e "${GREEN}✓${NC} OpenTofu: $(command -v tofu)"
+elif command -v terraform &>/dev/null; then
+  echo -e "${GREEN}✓${NC} Terraform: $(command -v terraform)"
+else
+  echo -e "${RED}✗${NC} OpenTofu or Terraform not found. Install: https://opentofu.org/docs/intro/install/"
+  failed=1
+fi
 check oci "oci" "Install: https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm" || failed=1
-check fn "fn" "Install: https://fnproject.io/tutorials/local/install/" || failed=1
-check docker "docker" "Install: https://docs.docker.com/get-docker/" || failed=1
 
 echo ""
 echo "=== OCI Config ==="

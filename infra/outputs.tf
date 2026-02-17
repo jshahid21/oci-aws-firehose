@@ -14,7 +14,7 @@ output "vcn_id" {
 }
 
 output "subnet_id" {
-  description = "Subnet OCID in use (private subnet for Functions)"
+  description = "Subnet OCID in use"
   value       = local.subnet_id
 }
 
@@ -50,27 +50,3 @@ output "aws_secret_key_secret_id" {
   sensitive   = true
 }
 
-output "function_app_id" {
-  description = "OCI Functions Application OCID"
-  value       = local.function_app_id
-}
-
-output "function_id" {
-  description = "OCI Function OCID"
-  value       = local.function_id
-}
-
-output "source_bucket_name" {
-  description = "OCI Object Storage source bucket name"
-  value       = local.source_bucket
-}
-
-output "source_bucket_namespace" {
-  description = "OCI Object Storage namespace"
-  value       = local.bucket_namespace
-}
-
-output "dynamic_group_name" {
-  description = "Dynamic Group name for Resource Principals"
-  value       = oci_identity_dynamic_group.firehose.name
-}

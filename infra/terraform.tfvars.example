@@ -45,26 +45,6 @@ existing_aws_secret_key_secret_id = ""
 # aws_secret_key = "your-secret"  # Uncomment and set when create_aws_secrets = true
 
 # -----------------------------------------------------------------------------
-# Source bucket: Create or use existing (oci-cost-reports)
-# -----------------------------------------------------------------------------
-create_bucket            = false
-existing_bucket_namespace = "your-tenancy-namespace"  # From: oci os ns get
-source_bucket_name       = "oci-cost-reports"
-
-# -----------------------------------------------------------------------------
-# Function: Create new or use existing app/function
-# -----------------------------------------------------------------------------
-create_function_app     = true
-existing_function_app_id = ""
-existing_function_id    = ""
-function_image          = ""  # Optional: set after fn deploy
-
-# -----------------------------------------------------------------------------
-# Events
-# -----------------------------------------------------------------------------
-create_event_rule = true
-
-# -----------------------------------------------------------------------------
 # AWS Destination
 # -----------------------------------------------------------------------------
 aws_s3_bucket_name = "my-aws-cost-reports"
