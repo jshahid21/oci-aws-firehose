@@ -7,7 +7,7 @@ resource "oci_identity_dynamic_group" "rclone_dg" {
 }
 
 resource "oci_identity_policy" "rclone_policy" {
-  compartment_id = local.compartment_id
+  compartment_id = var.tenancy_ocid  # Endorse policies must be in root compartment
   name           = "rclone-cross-tenancy-policy"
   description    = "Cross-tenancy OCI Usage Report read + Vault secret read"
   statements = [

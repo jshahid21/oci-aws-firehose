@@ -131,12 +131,6 @@ resource "oci_core_security_list" "private" {
     protocol    = "all"
     stateless   = false
   }
-
-  egress_security_rules {
-    destination = local.object_storage_cidr
-    protocol    = "6"
-    stateless   = false
-  }
 }
 
 # -----------------------------------------------------------------------------
