@@ -43,11 +43,6 @@ existing_aws_secret_key_secret_id  = ""
 # aws_secret_key = "your-secret"   # Uncomment when create_aws_secrets = true
 
 # -----------------------------------------------------------------------------
-# OCI Source - Usage Report bucket (cross-tenancy, namespace=bling)
-# -----------------------------------------------------------------------------
-source_bucket_name = "your-oci-usage-report-bucket"
-
-# -----------------------------------------------------------------------------
 # AWS Destination
 # -----------------------------------------------------------------------------
 aws_s3_bucket_name = "my-aws-cost-reports"

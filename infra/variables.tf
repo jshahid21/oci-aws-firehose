@@ -189,14 +189,6 @@ variable "aws_secret_key" {
 }
 
 # -----------------------------------------------------------------------------
-# OCI Source (Usage Report bucket in cross-tenancy)
-# -----------------------------------------------------------------------------
-variable "source_bucket_name" {
-  description = "OCI Usage Report bucket name (in cross-tenancy, namespace=bling)"
-  type        = string
-}
-
-# -----------------------------------------------------------------------------
 # Compute (Always Free Ampere A1)
 # -----------------------------------------------------------------------------
 variable "instance_shape" {

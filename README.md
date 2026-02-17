@@ -46,7 +46,6 @@ create_vault          = true
 create_key            = true
 create_aws_secrets    = true
 
-source_bucket_name   = "your-usage-report-bucket"
 aws_s3_bucket_name   = "my-target-bucket"
 aws_s3_prefix        = "oci-sync"
 aws_region           = "us-east-1"
@@ -74,7 +73,6 @@ create_aws_secrets   = false
 existing_aws_access_key_secret_id = "ocid1.vaultsecret..."
 existing_aws_secret_key_secret_id = "ocid1.vaultsecret..."
 
-source_bucket_name   = "your-usage-report-bucket"
 aws_s3_bucket_name   = "my-target-bucket"
 aws_s3_prefix        = "oci-sync"
 aws_region           = "us-east-1"
@@ -111,10 +109,9 @@ Check logs on the VM:
 tail -f /var/log/rclone-sync.log
 ```
 
-## Important: tenancy_ocid and Source Sync
+## Important: tenancy_ocid and Cost Reports
 
-- **`tenancy_ocid`** is used as the `compartment` in the OCI rclone remote. This gives Instance Principals the correct auth context when accessing the cross-tenancy Usage Report bucket.
-- **`source_bucket_name`** is the actual bucket name (in Oracle's `bling` namespace) where your Cost Reports are stored.
+For OCI Cost Reports, the source bucket name in Oracle's `bling` namespace is **always** your Tenancy OCID. You only need to set `tenancy_ocid` — no separate bucket name required.
 
 ## Troubleshooting
 

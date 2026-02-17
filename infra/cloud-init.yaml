@@ -57,7 +57,7 @@ runcmd:
     set -e
     export AWS_ACCESS_KEY_ID=$(oci secrets secret-bundle get --secret-id ${aws_access_key_secret_id} --query 'data.secret-bundle-content.content' --raw-output 2>/dev/null | base64 -d)
     export AWS_SECRET_ACCESS_KEY=$(oci secrets secret-bundle get --secret-id ${aws_secret_key_secret_id} --query 'data.secret-bundle-content.content' --raw-output 2>/dev/null | base64 -d)
-    rclone sync oci_usage:${source_bucket_name} aws_s3:${aws_s3_bucket_name}/${aws_s3_prefix} --log-file=/var/log/rclone-sync.log -v
+    rclone sync oci_usage:${tenancy_ocid} aws_s3:${aws_s3_bucket_name}/${aws_s3_prefix} --log-file=/var/log/rclone-sync.log -v
     SYNC_EOF
 
     chmod 755 /usr/local/bin/sync.sh

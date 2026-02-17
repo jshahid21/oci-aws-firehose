@@ -268,7 +268,6 @@ resource "oci_core_instance" "rclone_sync" {
       region                    = var.region
       aws_access_key_secret_id  = local.aws_access_key_secret_id
       aws_secret_key_secret_id  = local.aws_secret_key_secret_id
-      source_bucket_name        = var.source_bucket_name
       aws_s3_bucket_name        = var.aws_s3_bucket_name
       aws_s3_prefix             = var.aws_s3_prefix
       aws_region                = var.aws_region

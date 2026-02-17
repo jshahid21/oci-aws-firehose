@@ -20,7 +20,6 @@ Edit `terraform.tfvars`:
 - `region`, `tenancy_ocid`
 - Network: set `create_vcn`, `create_subnet`, `create_nat_gateway`, `create_service_gateway` (or use `existing_*_id`)
 - Vault: `create_vault`, `create_key`, `create_aws_secrets` (or existing IDs)
-- **`source_bucket_name`** – OCI Usage Report bucket name
 - **`aws_s3_bucket_name`**, **`aws_s3_prefix`**, **`aws_region`**
 - If `create_aws_secrets = true`, provide `aws_access_key` and `aws_secret_key`
 
