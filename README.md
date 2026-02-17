@@ -4,6 +4,8 @@ Syncs Oracle Cloud Usage Reports to AWS S3 via a VM running rclone (cron every 6
 
 **Stack:** OpenTofu · OCI (VCN, NAT, Service Gateway, Vault, Compute) · Instance Principals · Rclone
 
+**Compute:** VM.Standard.E6.Flex (AMD) by default; configurable OCPUs and memory. Use VM.Standard.A1.Flex for free tier.
+
 ## Prerequisites
 
 - **OpenTofu:** `brew install opentofu`
@@ -40,6 +42,8 @@ OpenTofu creates placeholder secrets. After apply:
 
 ### 4. Verify
 
+The VM fetches AWS keys from Vault at boot (cloud-init). After you add the secret versions, force a replace so it reboots with the real keys:
+
 ```bash
 tofu taint oci_core_instance.rclone_sync && tofu apply
 ```
@@ -57,5 +61,5 @@ Check logs on VM: `tail -f /var/log/rclone-sync.log`
 | Sync failed | Check `/var/log/rclone-sync.log` on VM |
 | OCI permission denied | Ensure `rclone-cross-tenancy-policy` has UsageReport Define + Endorse |
 | AWS permission denied | Verify IAM has `s3:PutObject` on bucket |
-| Image lookup empty | Set `fallback_image_id` (Oracle Linux OCID from OCI Console) |
+| Image lookup empty | Try `instance_shape = "VM.Standard.E5.Flex"` (better availability in some regions) |
 | TLS error (macOS) | `export SSL_CERT_FILE=$(brew --prefix)/etc/ca-certificates/cert.pem` |

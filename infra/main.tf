@@ -25,7 +25,7 @@ locals {
 
   oracle_linux_image_id = try(
     data.oci_core_images.oracle_linux.images[0].id,
-    try(data.oci_core_images.oracle_linux_8.images[0].id, var.fallback_image_id)
+    data.oci_core_images.oracle_linux_8.images[0].id
   )
   availability_domain   = data.oci_identity_availability_domains.ads.availability_domains[0].name
   object_storage_service = [for s in data.oci_core_services.all.services : s if strcontains(lower(s.name), "object storage")][0]

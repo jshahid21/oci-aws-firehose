@@ -18,8 +18,7 @@ create_aws_secrets       = true
 # aws_access_key = "AKIA..."
 # aws_secret_key = "your-secret"
 
-# Optional: instance_shape = "VM.Standard.A1.Flex" for free tier
-# Optional: fallback_image_id = "ocid1.image..." if image lookup fails
+# Optional: instance_shape = "VM.Standard.A1.Flex" for free tier; instance_ocpus / instance_memory_gb for sizing
 
 aws_s3_bucket_name = "my-aws-cost-reports"
 aws_s3_prefix      = "oci-sync"

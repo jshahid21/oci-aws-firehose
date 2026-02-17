@@ -187,28 +187,22 @@ variable "aws_secret_key" {
 }
 
 # -----------------------------------------------------------------------------
-# Compute (E4.Flex x86 = good image availability; A1.Flex = free tier ARM)
+# Compute (E6.Flex = latest AMD; E5.Flex = AMD; A1.Flex = free tier ARM)
 # -----------------------------------------------------------------------------
 variable "instance_shape" {
-  description = "Compute shape (VM.Standard.E4.Flex x86 recommended; VM.Standard.A1.Flex for free tier)"
+  description = "Compute shape (VM.Standard.E6.Flex or E5.Flex AMD; VM.Standard.A1.Flex for free tier)"
   type        = string
-  default     = "VM.Standard.E4.Flex"
-}
-
-variable "fallback_image_id" {
-  description = "Fallback image OCID when data source returns empty (e.g. Oracle Linux OCID from OCI Console)"
-  type        = string
-  default     = ""
+  default     = "VM.Standard.E6.Flex"
 }
 
 variable "instance_ocpus" {
-  description = "OCPUs for Flex shapes"
+  description = "OCPUs for Flex shapes (E5: 1-64, E6: 1-126)"
   type        = number
   default     = 1
 }
 
 variable "instance_memory_gb" {
-  description = "Memory in GB for Flex shapes"
+  description = "Memory in GB for Flex shapes (E5: up to 16/OCPU; E6: up to 64/OCPU)"
   type        = number
   default     = 1
 }
