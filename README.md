@@ -6,6 +6,17 @@ Syncs Oracle Cloud Usage Reports to AWS S3 via a VM running rclone (cron every 6
 
 **Compute:** VM.Standard.E6.Flex (AMD) by default; configurable OCPUs and memory. Use VM.Standard.A1.Flex for free tier.
 
+## Setup Flow
+
+```
+1. Prerequisites     → OpenTofu, OCI config (~/.oci/config), AWS IAM keys
+2. Configure        → Copy tfvars.example, set region, tenancy, compartment, S3 bucket
+3. Deploy            → tofu init && tofu apply
+4. Add secrets       → OCI Console: paste AWS keys into Vault secrets
+5. Replace VM        → tofu taint instance && tofu apply (picks up keys)
+6. Done             → Sync runs every 6h; check /var/log/rclone-sync.log
+```
+
 ## Prerequisites
 
 - **OpenTofu:** `brew install opentofu`
