@@ -62,6 +62,10 @@ resource "oci_core_vcn" "this" {
   cidr_block     = var.vcn_cidr
   display_name   = "firehose-vcn"
   dns_label      = var.vcn_dns_label
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -163,6 +167,10 @@ resource "oci_core_subnet" "this" {
   prohibit_public_ip_on_vnic  = true
   route_table_id             = (local.nat_gateway_id != "" || local.sgw_id != "") ? oci_core_route_table.private[0].id : null
   security_list_ids          = [oci_core_security_list.private[0].id]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -174,6 +182,10 @@ resource "oci_kms_vault" "this" {
   compartment_id = local.compartment_id
   display_name   = "firehose-vault"
   vault_type     = var.vault_type
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -188,6 +200,10 @@ resource "oci_kms_key" "this" {
   key_shape {
     algorithm = "AES"
     length    = 32
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -245,6 +261,10 @@ resource "oci_objectstorage_bucket" "this" {
   namespace      = data.oci_objectstorage_namespace.ns.namespace
   name           = var.source_bucket_name
   access_type    = "ObjectRead"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # -----------------------------------------------------------------------------

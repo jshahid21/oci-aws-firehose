@@ -9,14 +9,26 @@ import io
 import json
 import logging
 import os
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
+import boto3
 import oci
+from botocore.config import Config as BotoConfig
+from boto3.s3.transfer import TransferConfig
 from fdk import response
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 1GB threshold for timeout warning
+SIZE_THRESHOLD_1GB = 1024 * 1024 * 1024
+
+# Memory-safe transfer config: 8MB chunks, max 2 concurrent uploads
+TRANSFER_CONFIG = TransferConfig(
+    multipart_chunksize=8 * 1024 * 1024,  # 8MB
+    max_concurrency=2,
+)
 
 # Environment variables (injected by Terraform)
 OCI_SOURCE_NAMESPACE = os.environ.get("OCI_SOURCE_NAMESPACE", "")
@@ -57,6 +69,34 @@ def get_aws_credentials(secrets_client: oci.secrets.SecretsClient) -> Tuple[str,
     return access_key, secret_key
 
 
+def _get_oci_object_metadata(
+    object_storage_client: oci.object_storage.ObjectStorageClient,
+    namespace: str,
+    bucket: str,
+    object_name: str,
+) -> Tuple[Optional[int], Optional[str]]:
+    """
+    Get object metadata (Content-Length, Content-MD5) via HEAD before streaming.
+    Returns (content_length_bytes, content_md5) - either may be None if not present.
+    """
+    head_response = object_storage_client.head_object(
+        namespace_name=namespace,
+        bucket_name=bucket,
+        object_name=object_name,
+    )
+    headers = getattr(head_response, "headers", None) or {}
+    content_length = None
+    content_md5 = None
+    try:
+        cl = headers.get("content-length") or headers.get("Content-Length")
+        if cl is not None:
+            content_length = int(cl)
+    except (ValueError, TypeError):
+        pass
+    content_md5 = headers.get("content-md5") or headers.get("Content-MD5")
+    return content_length, content_md5
+
+
 def stream_object_to_s3(
     object_storage_client: oci.object_storage.ObjectStorageClient,
     s3_client: Any,
@@ -68,8 +108,23 @@ def stream_object_to_s3(
 ) -> None:
     """
     Stream object from OCI to S3 without writing to disk.
-    Uses get_object streaming response and boto3 upload_fileobj.
+    Uses head_object for metadata, get_object for streaming, boto3 upload_fileobj.
+    Logs OCI Content-MD5 and S3 ETag for audit capability.
     """
+    # Timeout protection: check Content-Length before streaming
+    content_length, content_md5 = _get_oci_object_metadata(
+        object_storage_client, namespace, bucket, object_name
+    )
+    if content_length is not None:
+        if content_length > SIZE_THRESHOLD_1GB:
+            logger.warning(
+                "Object %s is %.2f GB; function may timeout (content_length=%d)",
+                object_name,
+                content_length / (1024 ** 3),
+                content_length,
+            )
+    # Proceed with stream regardless
+
     # Get object as streaming response (zero-disk: never downloads to function disk)
     get_object_response = object_storage_client.get_object(
         namespace_name=namespace,
@@ -80,10 +135,28 @@ def stream_object_to_s3(
     # response.data is a stream (file-like with read())
     oci_stream = get_object_response.data
 
-    # Stream directly to S3 via upload_fileobj
-    # boto3.upload_fileobj accepts any file-like object
-    s3_client.upload_fileobj(oci_stream, s3_bucket, s3_key)
+    # Stream to S3 with memory-safe TransferConfig
+    s3_client.upload_fileobj(
+        oci_stream,
+        s3_bucket,
+        s3_key,
+        Config=TRANSFER_CONFIG,
+    )
     logger.info("Streamed %s -> s3://%s/%s", object_name, s3_bucket, s3_key)
+
+    # Data integrity audit: get S3 ETag via head_object (upload_fileobj does not return it)
+    s3_head = s3_client.head_object(Bucket=s3_bucket, Key=s3_key)
+    s3_etag = s3_head.get("ETag", "")
+
+    # Log to stdout for audit capability (OCI Content-MD5, S3 ETag)
+    audit_msg = {
+        "audit": "upload_complete",
+        "oci_object": object_name,
+        "s3_key": s3_key,
+        "oci_content_md5": content_md5,
+        "s3_etag": s3_etag,
+    }
+    print(json.dumps(audit_msg))
 
 
 def handler(ctx, data: io.BytesIO = None):
@@ -142,14 +215,14 @@ def handler(ctx, data: io.BytesIO = None):
         # AWS credentials from OCI Vault
         aws_access_key, aws_secret_key = get_aws_credentials(secrets_client)
 
-        # boto3 S3 client
-        import boto3
+        # boto3 S3 client with custom User-Agent for observability
+        boto_config = BotoConfig(user_agent_extra="OCI-Firehose-Function/1.0")
         session = boto3.Session(
             aws_access_key_id=aws_access_key,
             aws_secret_access_key=aws_secret_key,
             region_name=AWS_REGION,
         )
-        s3_client = session.client("s3")
+        s3_client = session.client("s3", config=boto_config)
 
         # Stream OCI -> S3 (zero-disk)
         stream_object_to_s3(
