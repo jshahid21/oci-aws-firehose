@@ -234,6 +234,13 @@ variable "instance_display_name" {
   default     = "oci-aws-rclone-sync"
 }
 
+variable "opc_password" {
+  description = "Optional password for opc user (Serial Console login). Leave empty to skip."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # -----------------------------------------------------------------------------
 # AWS Destination
 # -----------------------------------------------------------------------------

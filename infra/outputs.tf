@@ -12,12 +12,12 @@ output "instance_private_ip" {
 
 output "bastion_public_ip" {
   description = "Public IP of bastion host (for SSH proxy)"
-  value       = var.create_bastion && var.create_vcn ? data.oci_core_vnic.bastion[0].public_ip : null
+  value       = var.create_bastion && var.create_vcn ? data.oci_core_vnic.bastion[0].public_ip_address : null
 }
 
 output "bastion_ssh_command" {
   description = "Example SSH command to reach rclone instance via bastion"
-  value       = var.create_bastion && var.create_vcn ? "ssh -J opc@${data.oci_core_vnic.bastion[0].public_ip} opc@${oci_core_instance.rclone_sync.private_ip}" : null
+  value       = var.create_bastion && var.create_vcn ? "ssh -J opc@${data.oci_core_vnic.bastion[0].public_ip_address} opc@${oci_core_instance.rclone_sync.private_ip}" : null
 }
 
 output "dynamic_group_name" {

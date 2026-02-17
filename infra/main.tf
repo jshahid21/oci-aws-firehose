@@ -24,7 +24,7 @@ locals {
   has_sgw = var.create_service_gateway || var.existing_service_gateway_id != ""
 
   # SSH key for bastion and compute (read from path, expand ~ to HOME)
-  bastion_ssh_public_key = var.create_bastion ? file(replace(var.bastion_ssh_public_key_path, "~", env("HOME"))) : ""
+  bastion_ssh_public_key = var.create_bastion ? file(pathexpand(var.bastion_ssh_public_key_path)) : ""
 
   oracle_linux_image_id = try(
     data.oci_core_images.oracle_linux.images[0].id,
@@ -380,6 +380,7 @@ resource "oci_core_instance" "rclone_sync" {
       user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
         tenancy_ocid              = var.tenancy_ocid
         region                    = var.region
+        opc_password              = var.opc_password
         aws_access_key_secret_id  = local.aws_access_key_secret_id
         aws_secret_key_secret_id  = local.aws_secret_key_secret_id
         aws_s3_bucket_name        = var.aws_s3_bucket_name
