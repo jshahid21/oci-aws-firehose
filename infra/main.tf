@@ -1,11 +1,10 @@
 # =============================================================================
-# OCI-to-AWS Sync - VM + Rclone Architecture
-# Hybrid: Create VCN/Subnet/NAT/Vault/Secrets OR use existing IDs
-# Compute: Always Free Ampere A1, cloud-init, cron every 6 hours
+# OCI-to-AWS Sync - VM + Rclone (cron every 6h)
+# Hybrid: create new resources (Greenfield) or use existing IDs (Brownfield)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Locals - Resolved IDs
+# Locals
 # -----------------------------------------------------------------------------
 locals {
   compartment_id = var.create_compartment ? oci_identity_compartment.this[0].id : var.existing_compartment_id
@@ -20,6 +19,18 @@ locals {
 
   aws_access_key_secret_id = var.create_aws_secrets ? oci_vault_secret.aws_access_key[0].id : var.existing_aws_access_key_secret_id
   aws_secret_key_secret_id = var.create_aws_secrets ? oci_vault_secret.aws_secret_key[0].id : var.existing_aws_secret_key_secret_id
+
+  has_nat = var.create_nat_gateway || var.existing_nat_gateway_id != ""
+  has_sgw = var.create_service_gateway || var.existing_service_gateway_id != ""
+
+  oracle_linux_image_id = try(
+    data.oci_core_images.oracle_linux.images[0].id,
+    try(data.oci_core_images.oracle_linux_8.images[0].id, var.fallback_image_id)
+  )
+  availability_domain   = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  object_storage_service = [for s in data.oci_core_services.all.services : s if strcontains(lower(s.name), "object storage")][0]
+  object_storage_cidr   = local.object_storage_service.cidr_block
+  object_storage_id     = local.object_storage_service.id
 }
 
 # -----------------------------------------------------------------------------
@@ -70,30 +81,24 @@ resource "oci_core_service_gateway" "this" {
   vcn_id         = local.vcn_id
   display_name   = "oci-aws-sync-sgw"
   services {
-    service_id = data.oci_core_services.object_storage.services[0].id
+    service_id = local.object_storage_id
   }
 }
 
-data "oci_core_services" "object_storage" {
-  filter {
-    name   = "name"
-    values = ["Object Storage"]
-  }
-}
+data "oci_core_services" "all" {}
 
 # -----------------------------------------------------------------------------
-# Route Table for Private Subnet (internet via NAT, OCI services via SGW)
-# Create when subnet is new AND we have at least one gateway (created or existing)
+# Route Table
 # -----------------------------------------------------------------------------
 resource "oci_core_route_table" "private" {
-  count = var.create_subnet && (local.nat_gateway_id != "" || local.sgw_id != "") ? 1 : 0
+  count = var.create_subnet && (local.has_nat || local.has_sgw) ? 1 : 0
 
   compartment_id = local.compartment_id
   vcn_id         = local.vcn_id
   display_name   = "oci-aws-sync-private-rt"
 
   dynamic "route_rules" {
-    for_each = local.nat_gateway_id != "" ? [1] : []
+    for_each = local.has_nat ? [1] : []
     content {
       destination       = "0.0.0.0/0"
       destination_type  = "CIDR_BLOCK"
@@ -102,9 +107,9 @@ resource "oci_core_route_table" "private" {
   }
 
   dynamic "route_rules" {
-    for_each = local.sgw_id != "" ? [1] : []
+    for_each = local.has_sgw ? [1] : []
     content {
-      destination       = data.oci_core_services.object_storage.services[0].cidr_block
+      destination       = local.object_storage_cidr
       destination_type  = "SERVICE_CIDR_BLOCK"
       network_entity_id = local.sgw_id
     }
@@ -128,7 +133,7 @@ resource "oci_core_security_list" "private" {
   }
 
   egress_security_rules {
-    destination = data.oci_core_services.object_storage.services[0].cidr_block
+    destination = local.object_storage_cidr
     protocol    = "6"
     stateless   = false
   }
@@ -146,7 +151,7 @@ resource "oci_core_subnet" "this" {
   display_name               = "oci-aws-sync-private-subnet"
   dns_label                  = var.subnet_dns_label
   prohibit_public_ip_on_vnic  = true
-  route_table_id             = (local.nat_gateway_id != "" || local.sgw_id != "") ? oci_core_route_table.private[0].id : null
+  route_table_id             = (local.has_nat || local.has_sgw) ? oci_core_route_table.private[0].id : null
   security_list_ids          = [oci_core_security_list.private[0].id]
 
   lifecycle {
@@ -188,7 +193,6 @@ resource "oci_kms_key" "this" {
   }
 }
 
-# Create key version and get the key OCID for secrets (Keys use different endpoint)
 resource "oci_kms_key_version" "this" {
   count = var.create_key ? 1 : 0
 
@@ -196,16 +200,10 @@ resource "oci_kms_key_version" "this" {
   management_endpoint = local.vault_management_endpoint
 }
 
-# -----------------------------------------------------------------------------
-# Vault Lookup - Resolves management_endpoint for created or existing vault
-# -----------------------------------------------------------------------------
 data "oci_kms_vault" "vault_lookup" {
   vault_id = local.vault_id
 }
 
-# -----------------------------------------------------------------------------
-# AWS Credentials Secrets
-# -----------------------------------------------------------------------------
 resource "oci_vault_secret" "aws_access_key" {
   count = var.create_aws_secrets ? 1 : 0
 
@@ -233,15 +231,14 @@ resource "oci_vault_secret" "aws_secret_key" {
 }
 
 # -----------------------------------------------------------------------------
-# Compute Instance (Always Free Ampere A1)
+# Compute Instance
 # -----------------------------------------------------------------------------
 resource "oci_core_instance" "rclone_sync" {
   compartment_id      = local.compartment_id
-  availability_domain  = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  availability_domain  = local.availability_domain
   shape               = var.instance_shape
   display_name        = var.instance_display_name
   subnet_id           = local.subnet_id
-  hostname_label      = "rclone-sync"
   preserve_boot_volume = false
 
   shape_config {
@@ -251,7 +248,7 @@ resource "oci_core_instance" "rclone_sync" {
 
   source_details {
     source_type = "image"
-    source_id   = data.oci_core_images.oracle_linux.images[0].id
+    source_id   = local.oracle_linux_image_id
   }
 
   create_vnic_details {
@@ -283,6 +280,15 @@ data "oci_core_images" "oracle_linux" {
   compartment_id           = local.compartment_id
   operating_system         = "Oracle Linux"
   operating_system_version = "9"
+  shape                    = var.instance_shape
+  sort_by                  = "TIMECREATED"
+  sort_order               = "DESC"
+}
+
+data "oci_core_images" "oracle_linux_8" {
+  compartment_id           = local.compartment_id
+  operating_system         = "Oracle Linux"
+  operating_system_version = "8"
   shape                    = var.instance_shape
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"

@@ -1,11 +1,4 @@
-# =============================================================================
-# IAM: Dynamic Group & Cross-Tenancy Policy
-# Instance Principals: No API keys on VM
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# Dynamic Group - Match the rclone sync compute instance
-# -----------------------------------------------------------------------------
+# Dynamic Group + Cross-Tenancy Policy (Usage Report read, Vault secret read)
 resource "oci_identity_dynamic_group" "rclone_dg" {
   compartment_id = var.tenancy_ocid
   name          = "rclone-dg"
@@ -13,11 +6,6 @@ resource "oci_identity_dynamic_group" "rclone_dg" {
   matching_rule = "ALL {instance.id = '${oci_core_instance.rclone_sync.id}'}"
 }
 
-# -----------------------------------------------------------------------------
-# Cross-Tenancy Policy
-# 1. Allow access to Oracle's Usage Report Tenancy (cross-tenancy read)
-# 2. Allow access to OCI Vault for AWS keys
-# -----------------------------------------------------------------------------
 resource "oci_identity_policy" "rclone_policy" {
   compartment_id = local.compartment_id
   name           = "rclone-cross-tenancy-policy"

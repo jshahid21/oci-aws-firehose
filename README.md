@@ -1,25 +1,14 @@
 # OCI-to-AWS Cost Report Sync
 
-A "Set and Forget" utility that syncs Oracle Cloud Usage Reports (Cross-Tenancy) to AWS S3 using a lightweight VM and Rclone.
+Syncs Oracle Cloud Usage Reports to AWS S3 via a VM running rclone (cron every 6h).
 
-## Architecture
-
-- **Compute:** Always Free Ampere A1 VM (runs `rclone` via cron every 6 hours).
-- **Security:** OCI Instance Principals (Identity) + OCI Vault (AWS Keys).
-- **Infrastructure:** OpenTofu with **Hybrid** logic: create new resources (Greenfield) or use existing ones (Brownfield).
+**Stack:** OpenTofu · OCI (VCN, NAT, Service Gateway, Vault, Compute) · Instance Principals · Rclone
 
 ## Prerequisites
 
-1. **OpenTofu:** `brew install opentofu`
-2. **AWS:** An IAM User with `s3:PutObject` permission. Keep Access Key and Secret Key ready.
-3. **OCI:** Permissions to manage Compute, Network, and Vault. Auth uses `~/.oci/config` (DEFAULT profile). Set `region` and `tenancy_ocid` in `terraform.tfvars` to match your OCI config.
-
-## Greenfield vs Brownfield
-
-| Mode | Use Case | Variables |
-|------|----------|-----------|
-| **Greenfield** | Create everything from scratch | `create_vcn = true`, `create_vault = true`, etc. |
-| **Brownfield** | Use existing VCN, Subnet, Vault | `create_* = false`, `existing_*_id = "ocid1..."` |
+- **OpenTofu:** `brew install opentofu`
+- **OCI:** `~/.oci/config` (DEFAULT profile). Set `region` and `tenancy_ocid` in tfvars.
+- **AWS:** IAM user with `s3:PutObject`. Access key and secret key required.
 
 ## Quick Start
 
@@ -28,55 +17,11 @@ A "Set and Forget" utility that syncs Oracle Cloud Usage Reports (Cross-Tenancy)
 ```bash
 cd infra
 cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars: region, tenancy_ocid, compartment_id, aws_s3_*, aws_region
 ```
 
-Edit `terraform.tfvars`. See examples below for both modes.
-
-**Greenfield (Create All):**
-
-```hcl
-tenancy_ocid = "ocid1.tenancy.oc1..aaaa..."
-region       = "us-ashburn-1"
-
-create_vcn            = true
-create_subnet         = true
-create_nat_gateway    = true
-create_service_gateway = true
-create_vault          = true
-create_key            = true
-create_aws_secrets    = true
-
-aws_s3_bucket_name   = "my-target-bucket"
-aws_s3_prefix        = "oci-sync"
-aws_region           = "us-east-1"
-```
-
-**Brownfield (Use Existing):**
-
-```hcl
-tenancy_ocid = "ocid1.tenancy.oc1..aaaa..."
-region       = "us-ashburn-1"
-
-create_vcn           = false
-existing_vcn_id      = "ocid1.vcn..."
-create_subnet        = false
-existing_subnet_id   = "ocid1.subnet..."
-create_nat_gateway   = false
-existing_nat_gateway_id = "ocid1.natgateway..."
-create_service_gateway = false
-existing_service_gateway_id = "ocid1.servicegateway..."
-create_vault         = false
-existing_vault_id    = "ocid1.vault..."
-create_key           = false
-existing_key_id      = "ocid1.key..."
-create_aws_secrets   = false
-existing_aws_access_key_secret_id = "ocid1.vaultsecret..."
-existing_aws_secret_key_secret_id = "ocid1.vaultsecret..."
-
-aws_s3_bucket_name   = "my-target-bucket"
-aws_s3_prefix        = "oci-sync"
-aws_region           = "us-east-1"
-```
+**Greenfield** (create all): `create_vcn = true`, `create_vault = true`, etc.  
+**Brownfield** (use existing): `create_* = false`, set `existing_*_id` for each resource.
 
 ### 2. Deploy
 
@@ -85,38 +30,32 @@ tofu init
 tofu apply
 ```
 
-### 3. Add Secrets (Required Step)
+### 3. Add AWS secrets (required)
 
-OpenTofu creates a Vault and **placeholder** secrets so your AWS keys never touch disk. You must update them manually after `tofu apply`:
+OpenTofu creates placeholder secrets. After apply:
 
-1. Go to **OCI Console → Identity & Security → Vault**.
-2. Open **oci-aws-sync-vault**.
-3. Under **Secrets**, click **oci-aws-sync-aws-access-key** → **Create New Version** → paste your AWS Access Key.
-4. Repeat for **oci-aws-sync-aws-secret-key** with your AWS Secret Key.
+1. **OCI Console → Identity & Security → Vault** → open `oci-aws-sync-vault`
+2. **Secrets** → `oci-aws-sync-aws-access-key` → Create New Version → paste AWS Access Key
+3. Repeat for `oci-aws-sync-aws-secret-key` with AWS Secret Key
 
 ### 4. Verify
 
-The VM syncs automatically every 6 hours. To test immediately, force a new instance (picks up the keys):
-
 ```bash
-tofu taint oci_core_instance.rclone_sync
-tofu apply
+tofu taint oci_core_instance.rclone_sync && tofu apply
 ```
 
-Check logs on the VM:
+Check logs on VM: `tail -f /var/log/rclone-sync.log`
 
-```bash
-tail -f /var/log/rclone-sync.log
-```
+---
 
-## Important: tenancy_ocid and Cost Reports
-
-For OCI Cost Reports, the source bucket name in Oracle's `bling` namespace is **always** your Tenancy OCID. You only need to set `tenancy_ocid` — no separate bucket name required.
+**Note:** Cost Reports use bucket = Tenancy OCID in Oracle's `bling` namespace. No extra config needed.
 
 ## Troubleshooting
 
 | Issue | Action |
 |-------|--------|
-| Sync failed | Check `/var/log/rclone-sync.log` on the VM. |
-| Permission denied on OCI | Ensure `rclone-cross-tenancy-policy` has the `Define tenancy UsageReport` and `Endorse` statements. |
-| AWS permission denied | Verify IAM user has `s3:PutObject` on the destination bucket. |
+| Sync failed | Check `/var/log/rclone-sync.log` on VM |
+| OCI permission denied | Ensure `rclone-cross-tenancy-policy` has UsageReport Define + Endorse |
+| AWS permission denied | Verify IAM has `s3:PutObject` on bucket |
+| Image lookup empty | Set `fallback_image_id` (Oracle Linux OCID from OCI Console) |
+| TLS error (macOS) | `export SSL_CERT_FILE=$(brew --prefix)/etc/ca-certificates/cert.pem` |

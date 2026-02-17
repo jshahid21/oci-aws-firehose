@@ -1,6 +1,4 @@
-# =============================================================================
-# OCI-to-AWS Sync - Hybrid Create vs Use Existing Variables
-# =============================================================================
+# OCI-to-AWS Sync - Variables
 
 variable "region" {
   description = "OCI region (e.g., us-ashburn-1)"
@@ -189,22 +187,28 @@ variable "aws_secret_key" {
 }
 
 # -----------------------------------------------------------------------------
-# Compute (Always Free Ampere A1)
+# Compute (E4.Flex x86 = good image availability; A1.Flex = free tier ARM)
 # -----------------------------------------------------------------------------
 variable "instance_shape" {
-  description = "Compute shape (Always Free: VM.Standard.A1.Flex)"
+  description = "Compute shape (VM.Standard.E4.Flex x86 recommended; VM.Standard.A1.Flex for free tier)"
   type        = string
-  default     = "VM.Standard.A1.Flex"
+  default     = "VM.Standard.E4.Flex"
+}
+
+variable "fallback_image_id" {
+  description = "Fallback image OCID when data source returns empty (e.g. Oracle Linux OCID from OCI Console)"
+  type        = string
+  default     = ""
 }
 
 variable "instance_ocpus" {
-  description = "OCPUs for A1.Flex"
+  description = "OCPUs for Flex shapes"
   type        = number
   default     = 1
 }
 
 variable "instance_memory_gb" {
-  description = "Memory in GB for A1.Flex"
+  description = "Memory in GB for Flex shapes"
   type        = number
   default     = 1
 }

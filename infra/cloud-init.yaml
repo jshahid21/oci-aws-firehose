@@ -24,9 +24,9 @@ runcmd:
     if ! command -v rclone &>/dev/null; then
       ARCH=$(uname -m)
       if [[ "$ARCH" == "aarch64" ]]; then RCLONE_ARCH=arm64; else RCLONE_ARCH=amd64; fi
-      curl -sLO "https://downloads.rclone.org/rclone-current-linux-${RCLONE_ARCH}.zip"
-      unzip -o rclone-current-linux-${RCLONE_ARCH}.zip
-      cp rclone-*-linux-${RCLONE_ARCH}/rclone /usr/local/bin/
+      curl -sLO "https://downloads.rclone.org/rclone-current-linux-$${RCLONE_ARCH}.zip"
+      unzip -o rclone-current-linux-$${RCLONE_ARCH}.zip
+      cp rclone-*-linux-$${RCLONE_ARCH}/rclone /usr/local/bin/
       chmod 755 /usr/local/bin/rclone
     fi
     rclone version
