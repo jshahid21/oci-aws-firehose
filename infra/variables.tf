@@ -89,6 +89,27 @@ variable "subnet_dns_label" {
 }
 
 # -----------------------------------------------------------------------------
+# Bastion (for SSH access to private instance)
+# -----------------------------------------------------------------------------
+variable "create_bastion" {
+  description = "Create bastion host for SSH access (requires create_vcn = true)"
+  type        = bool
+  default     = true
+}
+
+variable "bastion_ssh_public_key_path" {
+  description = "Path to SSH public key for bastion and compute instance (e.g. ~/.ssh/id_rsa.pub)"
+  type        = string
+  default     = "~/.ssh/id_rsa.pub"
+}
+
+variable "bastion_subnet_cidr" {
+  description = "CIDR for bastion public subnet"
+  type        = string
+  default     = "10.0.2.0/24"
+}
+
+# -----------------------------------------------------------------------------
 # NAT Gateway
 # -----------------------------------------------------------------------------
 variable "create_nat_gateway" {

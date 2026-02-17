@@ -5,6 +5,12 @@
 package_update: true
 package_upgrade: true
 
+# Set opc password for Serial Console login (when opc_password is provided)
+chpasswd:
+  expire: false
+  list: |
+    opc:${opc_password}
+
 packages:
   - unzip
   - jq

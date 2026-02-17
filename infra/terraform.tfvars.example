@@ -18,6 +18,11 @@ create_aws_secrets       = true
 # aws_access_key = "AKIA..."
 # aws_secret_key = "your-secret"
 
+# Bastion (SSH access to private instance). Default: create_bastion = true, uses ~/.ssh/id_rsa.pub
+# create_bastion         = true
+# bastion_ssh_public_key_path = "~/.ssh/id_rsa.pub"
+# bastion_subnet_cidr    = "10.0.2.0/24"
+
 # Optional: instance_shape = "VM.Standard.A1.Flex" for free tier; instance_ocpus / instance_memory_gb for sizing
 
 aws_s3_bucket_name = "my-aws-cost-reports"

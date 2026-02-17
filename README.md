@@ -61,6 +61,28 @@ tofu taint oci_core_instance.rclone_sync && tofu apply
 
 Check logs on VM: `tail -f /var/log/rclone-sync.log`
 
+### 5. Access via bastion (optional)
+
+By default a bastion host is created for SSH access to the private rclone instance. Ensure your public key is at `~/.ssh/id_rsa.pub` (or set `bastion_ssh_public_key_path`).
+
+After apply, use the output:
+
+```bash
+# One-liner (use bastion_ssh_command output):
+ssh -J opc@<bastion_public_ip> opc@<instance_private_ip>
+
+# Or set in ~/.ssh/config:
+# Host oci-rclone-bastion
+#   HostName <bastion_public_ip>
+#   User opc
+# Host oci-rclone
+#   HostName <instance_private_ip>
+#   User opc
+#   ProxyJump oci-rclone-bastion
+```
+
+Set `create_bastion = false` in tfvars if you do not need bastion access. Bastion requires `create_vcn = true`.
+
 ---
 
 **Note:** Cost Reports use bucket = Tenancy OCID in Oracle's `bling` namespace. No extra config needed.

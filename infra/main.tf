@@ -23,6 +23,9 @@ locals {
   has_nat = var.create_nat_gateway || var.existing_nat_gateway_id != ""
   has_sgw = var.create_service_gateway || var.existing_service_gateway_id != ""
 
+  # SSH key for bastion and compute (read from path, expand ~ to HOME)
+  bastion_ssh_public_key = var.create_bastion ? file(replace(var.bastion_ssh_public_key_path, "~", env("HOME"))) : ""
+
   oracle_linux_image_id = try(
     data.oci_core_images.oracle_linux.images[0].id,
     data.oci_core_images.oracle_linux_8.images[0].id
@@ -126,6 +129,20 @@ resource "oci_core_security_list" "private" {
   vcn_id         = local.vcn_id
   display_name   = "oci-aws-sync-private-sl"
 
+  # SSH from bastion (when bastion is created)
+  dynamic "ingress_security_rules" {
+    for_each = var.create_bastion && var.create_vcn ? [1] : []
+    content {
+      protocol    = "6"
+      source      = var.bastion_subnet_cidr
+      stateless   = false
+      tcp_options {
+        min = 22
+        max = 22
+      }
+    }
+  }
+
   egress_security_rules {
     destination = "0.0.0.0/0"
     protocol    = "all"
@@ -151,6 +168,111 @@ resource "oci_core_subnet" "this" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+# -----------------------------------------------------------------------------
+# Bastion (public subnet + instance for SSH access)
+# -----------------------------------------------------------------------------
+resource "oci_core_internet_gateway" "bastion" {
+  count = var.create_bastion && var.create_vcn ? 1 : 0
+
+  compartment_id = local.compartment_id
+  vcn_id         = local.vcn_id
+  display_name   = "oci-aws-sync-igw"
+}
+
+resource "oci_core_route_table" "bastion" {
+  count = var.create_bastion && var.create_vcn ? 1 : 0
+
+  compartment_id = local.compartment_id
+  vcn_id         = local.vcn_id
+  display_name   = "oci-aws-sync-bastion-rt"
+
+  route_rules {
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+    network_entity_id = oci_core_internet_gateway.bastion[0].id
+  }
+}
+
+resource "oci_core_security_list" "bastion" {
+  count = var.create_bastion && var.create_vcn ? 1 : 0
+
+  compartment_id = local.compartment_id
+  vcn_id         = local.vcn_id
+  display_name   = "oci-aws-sync-bastion-sl"
+
+  ingress_security_rules {
+    protocol    = "6"
+    source      = "0.0.0.0/0"
+    stateless   = false
+    tcp_options {
+      min = 22
+      max = 22
+    }
+  }
+
+  egress_security_rules {
+    destination = "0.0.0.0/0"
+    protocol    = "all"
+    stateless   = false
+  }
+}
+
+resource "oci_core_subnet" "bastion" {
+  count = var.create_bastion && var.create_vcn ? 1 : 0
+
+  compartment_id            = local.compartment_id
+  vcn_id                    = local.vcn_id
+  cidr_block                = var.bastion_subnet_cidr
+  display_name              = "oci-aws-sync-bastion-subnet"
+  dns_label                 = "bastion"
+  prohibit_public_ip_on_vnic = false
+  route_table_id            = oci_core_route_table.bastion[0].id
+  security_list_ids         = [oci_core_security_list.bastion[0].id]
+}
+
+resource "oci_core_instance" "bastion" {
+  count = var.create_bastion && var.create_vcn ? 1 : 0
+
+  compartment_id      = local.compartment_id
+  availability_domain  = local.availability_domain
+  shape               = var.instance_shape
+  display_name        = "oci-aws-sync-bastion"
+  subnet_id           = oci_core_subnet.bastion[0].id
+  preserve_boot_volume = false
+
+  shape_config {
+    ocpus         = var.instance_ocpus
+    memory_in_gbs = var.instance_memory_gb
+  }
+
+  source_details {
+    source_type = "image"
+    source_id   = local.oracle_linux_image_id
+  }
+
+  create_vnic_details {
+    subnet_id              = oci_core_subnet.bastion[0].id
+    skip_source_dest_check = false
+    assign_public_ip       = true
+    hostname_label         = "bastion"
+  }
+
+  metadata = {
+    ssh_authorized_keys = local.bastion_ssh_public_key
+  }
+}
+
+data "oci_core_vnic_attachments" "bastion" {
+  count          = var.create_bastion && var.create_vcn ? 1 : 0
+  compartment_id = local.compartment_id
+  instance_id    = oci_core_instance.bastion[0].id
+}
+
+data "oci_core_vnic" "bastion" {
+  count   = var.create_bastion && var.create_vcn ? 1 : 0
+  vnic_id = data.oci_core_vnic_attachments.bastion[0].vnic_attachments[0].vnic_id
 }
 
 # -----------------------------------------------------------------------------
@@ -253,17 +375,20 @@ resource "oci_core_instance" "rclone_sync" {
     hostname_label         = "rclone-sync"
   }
 
-  metadata = {
-    user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
-      tenancy_ocid              = var.tenancy_ocid
-      region                    = var.region
-      aws_access_key_secret_id  = local.aws_access_key_secret_id
-      aws_secret_key_secret_id  = local.aws_secret_key_secret_id
-      aws_s3_bucket_name        = var.aws_s3_bucket_name
-      aws_s3_prefix             = var.aws_s3_prefix
-      aws_region                = var.aws_region
-    }))
-  }
+  metadata = merge(
+    {
+      user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
+        tenancy_ocid              = var.tenancy_ocid
+        region                    = var.region
+        aws_access_key_secret_id  = local.aws_access_key_secret_id
+        aws_secret_key_secret_id  = local.aws_secret_key_secret_id
+        aws_s3_bucket_name        = var.aws_s3_bucket_name
+        aws_s3_prefix             = var.aws_s3_prefix
+        aws_region                = var.aws_region
+      }))
+    },
+    var.create_bastion ? { ssh_authorized_keys = local.bastion_ssh_public_key } : {}
+  )
 }
 
 data "oci_identity_availability_domains" "ads" {
