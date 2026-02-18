@@ -158,6 +158,7 @@ Set `create_bastion = false` in tfvars if you do not need bastion access. Bastio
 | Bootstrap "Killed" in log | OOM — increase `instance_memory_gb` to 2+ in tfvars |
 | sync.sh not found | Wait for bootstrap; `cloud-init status: done` is not required. Verify with `grep sync /etc/crontab` and `ls /usr/local/bin/sync.sh` |
 | Sync failed | Check `/var/log/rclone-sync.log` on VM or OCI Logging |
+| "directory not found" (bling) | Cost reports are in tenancy **home region** — ensure `region` in tfvars matches. Reports may take 24–48h to appear. Verify policy in IAM. |
 | No email alerts | Confirm OCI Subscription in your inbox; verify `alert_email_address` in tfvars |
 | OCI permission denied | Ensure `rclone-cross-tenancy-policy` has UsageReport Define + Endorse |
 | AWS permission denied | Verify IAM has `s3:PutObject` on bucket |

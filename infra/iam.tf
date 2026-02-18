@@ -12,9 +12,12 @@ resource "oci_identity_policy" "rclone_policy" {
   name           = "rclone-cross-tenancy-policy"
   description    = "Cross-tenancy OCI Usage Report read + Vault secret read"
   statements = [
+    # Oracle-managed UsageReport tenancy OCID - do not change (see OCI Cost Report docs)
     "Define tenancy UsageReport as ocid1.tenancy.oc1..aaaaaaaaned4fkpkisbwjlr56u7cj63lf3wffbilvqknstgtvzub7vhqkggq",
     "Endorse dynamic-group rclone-dg to read objects in tenancy UsageReport",
     "Endorse dynamic-group rclone-dg to read buckets in tenancy UsageReport",
+    # Allow namespace discovery for bling (cost reports)
+    "Allow dynamic-group rclone-dg to read objectstorage-namespaces in tenancy where request.namespace='bling'",
     "Allow dynamic-group rclone-dg to read secret-bundles in compartment id ${local.compartment_id}"
   ]
 }
