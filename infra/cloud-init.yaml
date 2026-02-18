@@ -55,7 +55,7 @@ write_files:
 
       if ! /usr/local/bin/rclone sync oci_usage:${tenancy_ocid} aws_s3:${aws_s3_bucket_name}/${aws_s3_prefix} --log-file=/var/log/rclone-sync.log --checksum --s3-chunk-size 64M --s3-upload-concurrency 8 -v; then
         if [ -n "${alert_topic_id}" ]; then
-          oci ons notification publish --topic-id "${alert_topic_id}" --body "Rclone sync FAILED. Check /var/log/rclone-sync.log on $(hostname)" 2>/dev/null || true
+          oci ons message publish --topic-id "${alert_topic_id}" --body "Rclone sync FAILED. Check /var/log/rclone-sync.log on $(hostname)" 2>/dev/null || true
         fi
         exit 1
       fi

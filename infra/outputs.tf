@@ -87,3 +87,9 @@ output "alert_notification_topic_id" {
   value       = var.enable_monitoring ? oci_ons_notification_topic.rclone_alerts[0].topic_id : null
 }
 
+output "oci_private_key_secret_id" {
+  description = "OCI Vault Secret OCID for rclone API private key (use for debugging secret fetch on VM)"
+  value       = local.oci_private_key_secret_id
+  sensitive   = true
+}
+

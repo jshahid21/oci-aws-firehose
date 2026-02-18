@@ -148,6 +148,7 @@ Set `create_bastion = false` in tfvars if you do not need bastion access. Bastio
 | "directory not found" (bling) | Cost reports are in tenancy **home region** — ensure `region` in tfvars matches. Reports may take 24–48h to appear. Verify policy in IAM. |
 | No email alerts | Confirm OCI Subscription in your inbox; verify `alert_email_address` in tfvars |
 | OCI permission denied | Ensure `rclone-cross-tenancy-policy` has Define + Endorse for rclone-sync-readers group; verify OCI API key in Vault |
+| "private key" / bad configuration | Vault has placeholder or wrong key. Add real `oci_api_private_key` to tfvars, run `tofu apply`, re-run sync. On VM: `sudo cat /root/.oci/key.pem | head -2` — should show `-----BEGIN PRIVATE KEY-----` and `MIIEvw...`. |
 | "primary email must be specified" | Set `oci_rclone_user_email` in tfvars (e.g. valid email for your identity domain) |
 | AWS permission denied | Verify IAM has `s3:PutObject` on bucket |
 | Image lookup empty | Try `instance_shape = "VM.Standard.E5.Flex"` (better availability in some regions) |
