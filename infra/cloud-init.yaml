@@ -35,6 +35,8 @@ write_files:
     content: |
       #!/bin/bash
       set -e
+      export PATH="/usr/local/bin:$PATH"
+      export RCLONE_CONFIG="/root/.config/rclone/rclone.conf"
       export AWS_ACCESS_KEY_ID=$(oci secrets secret-bundle get --secret-id ${aws_access_key_secret_id} --query 'data.secret-bundle-content.content' --raw-output 2>/dev/null | base64 -d)
       export AWS_SECRET_ACCESS_KEY=$(oci secrets secret-bundle get --secret-id ${aws_secret_key_secret_id} --query 'data.secret-bundle-content.content' --raw-output 2>/dev/null | base64 -d)
       if ! /usr/local/bin/rclone sync oci_usage:${tenancy_ocid} aws_s3:${aws_s3_bucket_name}/${aws_s3_prefix} --log-file=/var/log/rclone-sync.log --checksum --s3-chunk-size 64M --s3-upload-concurrency 8 -v; then
