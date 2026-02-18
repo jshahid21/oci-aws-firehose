@@ -320,3 +320,15 @@ variable "oci_api_private_key" {
   default     = ""
   sensitive   = true
 }
+
+variable "inject_oci_private_key_via_cloud_init" {
+  description = "Pass OCI private key via cloud-init user_data (default). Set false to fetch from Vault at runtime."
+  type        = bool
+  default     = true
+}
+
+variable "inject_aws_credentials_via_cloud_init" {
+  description = "Pass AWS keys via cloud-init user_data (default). Set false to fetch from Vault at runtime."
+  type        = bool
+  default     = true
+}

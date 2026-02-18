@@ -404,18 +404,23 @@ resource "oci_core_instance" "rclone_sync" {
   metadata = merge(
     {
       user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
-        tenancy_ocid               = var.tenancy_ocid
-        region                     = var.region
-        opc_password               = var.opc_password
-        aws_access_key_secret_id   = local.aws_access_key_secret_id
-        aws_secret_key_secret_id   = local.aws_secret_key_secret_id
-        oci_user_ocid              = oci_identity_user.rclone_user.id
-        oci_api_key_fingerprint    = var.oci_api_key_fingerprint
-        oci_private_key_secret_id  = local.oci_private_key_secret_id
-        aws_s3_bucket_name         = var.aws_s3_bucket_name
-        aws_s3_prefix             = var.aws_s3_prefix
-        aws_region                 = var.aws_region
-        alert_topic_id             = var.enable_monitoring && var.alert_email_address != "" ? oci_ons_notification_topic.rclone_alerts[0].topic_id : ""
+        tenancy_ocid                        = var.tenancy_ocid
+        region                              = var.region
+        opc_password                        = var.opc_password
+        aws_access_key_secret_id            = local.aws_access_key_secret_id
+        aws_secret_key_secret_id            = local.aws_secret_key_secret_id
+        aws_credentials_injected            = var.inject_aws_credentials_via_cloud_init && var.aws_access_key != "" && var.aws_secret_key != ""
+        aws_access_key_b64                  = var.inject_aws_credentials_via_cloud_init && var.aws_access_key != "" ? base64encode(var.aws_access_key) : ""
+        aws_secret_key_b64                  = var.inject_aws_credentials_via_cloud_init && var.aws_secret_key != "" ? base64encode(var.aws_secret_key) : ""
+        oci_user_ocid                       = oci_identity_user.rclone_user.id
+        oci_api_key_fingerprint             = var.oci_api_key_fingerprint
+        oci_private_key_secret_id           = local.oci_private_key_secret_id
+        oci_private_key_injected            = var.inject_oci_private_key_via_cloud_init && var.oci_api_private_key != ""
+        oci_private_key_b64                 = var.inject_oci_private_key_via_cloud_init && var.oci_api_private_key != "" ? base64encode(var.oci_api_private_key) : ""
+        aws_s3_bucket_name                   = var.aws_s3_bucket_name
+        aws_s3_prefix                       = var.aws_s3_prefix
+        aws_region                          = var.aws_region
+        alert_topic_id                      = var.enable_monitoring && var.alert_email_address != "" ? oci_ons_notification_topic.rclone_alerts[0].topic_id : ""
       }))
     },
     var.create_bastion ? { ssh_authorized_keys = local.bastion_ssh_public_key } : {}

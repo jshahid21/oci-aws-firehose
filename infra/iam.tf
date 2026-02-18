@@ -35,6 +35,7 @@ resource "oci_identity_policy" "rclone_policy" {
     "Define tenancy reporting as ocid1.tenancy.oc1..aaaaaaaaned4fkpkisbwjlr56u7cj63lf3wffbilvqknstgtvzub7vhqkggq",
     "Endorse group ${var.oci_rclone_group_name} to read objects in tenancy reporting",
     "Endorse group ${var.oci_rclone_group_name} to read buckets in tenancy reporting",
-    "Allow dynamic-group rclone-dg to read secret-bundles in compartment id ${local.compartment_id}"
+    # Vault secret read: instance principal fetches secrets at runtime (use > read for GetSecretBundle)
+    "Allow dynamic-group rclone-dg to use secret-bundles in compartment id ${local.compartment_id}"
   ]
 }
