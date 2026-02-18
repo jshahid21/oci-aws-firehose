@@ -52,7 +52,8 @@ aws_secret_key = "your-secret-here"
 
 # -----------------------------------------------------------------------------
 # Optional: opc_password = "..." for Serial Console login
-# Optional: enable_logging_agent = false to disable OCI Logging
+# Optional: enable_monitoring = false to disable log streaming and alerts
+# Optional: alert_email_address = "you@example.com" for sync-failure email alerts
 # Optional: instance_shape = "VM.Standard.A1.Flex" for free tier
 # -----------------------------------------------------------------------------
 

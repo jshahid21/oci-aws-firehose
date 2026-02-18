@@ -357,6 +357,19 @@ resource "oci_core_instance" "rclone_sync" {
   subnet_id           = local.subnet_id
   preserve_boot_volume = false
 
+  freeform_tags = {
+    "Role" = "rclone-worker"
+  }
+
+  # Enable Custom Logs plugin for OCI Logging agent (when monitoring enabled)
+  agent_config {
+    is_monitoring_disabled = !var.enable_monitoring
+    plugins_config {
+      desired_state = var.enable_monitoring ? "ENABLED" : "DISABLED"
+      name          = "Custom Logs Monitoring"
+    }
+  }
+
   shape_config {
     ocpus         = var.instance_ocpus
     memory_in_gbs = var.instance_memory_gb
@@ -386,6 +399,7 @@ resource "oci_core_instance" "rclone_sync" {
         aws_s3_bucket_name        = var.aws_s3_bucket_name
         aws_s3_prefix             = var.aws_s3_prefix
         aws_region                = var.aws_region
+        alert_topic_id            = var.enable_monitoring && var.alert_email_address != "" ? oci_ons_notification_topic.rclone_alerts[0].topic_id : ""
       }))
     },
     var.create_bastion ? { ssh_authorized_keys = local.bastion_ssh_public_key } : {}

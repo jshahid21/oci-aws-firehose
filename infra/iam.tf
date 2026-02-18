@@ -1,9 +1,10 @@
 # Dynamic Group + Cross-Tenancy Policy (Usage Report read, Vault secret read)
+# Matches instances tagged Role=rclone-worker in the compartment (production-ready: tag-based, not instance-id)
 resource "oci_identity_dynamic_group" "rclone_dg" {
   compartment_id = var.tenancy_ocid
   name          = "rclone-dg"
   description   = "Dynamic group for OCI-to-AWS rclone sync VM"
-  matching_rule = "ALL {instance.id = '${oci_core_instance.rclone_sync.id}'}"
+  matching_rule = "ALL {tag.Role.value = 'rclone-worker', instance.compartment.id = '${local.compartment_id}'}"
 }
 
 resource "oci_identity_policy" "rclone_policy" {

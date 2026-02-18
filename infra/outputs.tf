@@ -10,6 +10,11 @@ output "instance_private_ip" {
   value       = oci_core_instance.rclone_sync.private_ip
 }
 
+output "worker_private_ip" {
+  description = "Private IP of the rclone worker VM (alias for SSH)"
+  value       = oci_core_instance.rclone_sync.private_ip
+}
+
 output "bastion_public_ip" {
   description = "Public IP of bastion host (for SSH proxy)"
   value       = var.create_bastion && var.create_vcn ? data.oci_core_vnic.bastion[0].public_ip_address : null
@@ -70,5 +75,10 @@ output "aws_secret_key_secret_id" {
   description = "OCI Vault Secret OCID for AWS Secret Key"
   value       = local.aws_secret_key_secret_id
   sensitive   = true
+}
+
+output "alert_notification_topic_id" {
+  description = "OCI Notification Topic OCID for rclone sync alerts"
+  value       = var.enable_monitoring ? oci_ons_notification_topic.rclone_alerts[0].topic_id : null
 }
 

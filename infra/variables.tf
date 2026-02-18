@@ -259,3 +259,18 @@ variable "aws_region" {
   description = "AWS region for S3 bucket"
   type        = string
 }
+
+# -----------------------------------------------------------------------------
+# Observability / Monitoring
+# -----------------------------------------------------------------------------
+variable "enable_monitoring" {
+  description = "Enable notification topic, email subscription, log group, and log-based alerting"
+  type        = bool
+  default     = true
+}
+
+variable "alert_email_address" {
+  description = "Email address for rclone sync failure alerts (required for email subscription)"
+  type        = string
+  default     = ""
+}
