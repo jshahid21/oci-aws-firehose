@@ -36,96 +36,81 @@ OCI-to-AWS Cost Report Sync — syncs Oracle Cloud Usage Reports to AWS S3 via a
 
 **Flow:** OCI Object Storage (Usage Reports) → VM (Rclone + Agent) → AWS S3. Logs stream to OCI Logging; sync failures trigger email alerts via the Notification Topic.
 
-## Setup Flow
-
-```
-1. Prerequisites     → OpenTofu, OCI config (~/.oci/config), AWS IAM keys, email for alerts
-2. Configure        → Copy tfvars.example, set region, tenancy, compartment, S3 bucket, alert_email_address
-3. Deploy           → tofu init && tofu apply
-4. Add OCI API key  → Add API key to rclone-sync user in Console; set oci_api_key_fingerprint + oci_api_private_key in tfvars; tofu apply
-5. Add secrets      → OCI Console: paste AWS keys into Vault secrets (if create_aws_secrets = true)
-6. Confirm alerts   → Check inbox and confirm OCI Subscription to receive alerts
-7. Replace VM       → tofu taint instance && tofu apply (picks up keys)
-8. Done             → Sync runs every 6h; logs in OCI Console or /var/log/rclone-sync.log
-```
-
 ## Prerequisites
 
 - **OpenTofu:** `brew install opentofu`
-- **OCI:** `~/.oci/config` (DEFAULT profile). Set `region` and `tenancy_ocid` in tfvars.
-- **AWS:** IAM user with `s3:PutObject`. Access key and secret key required.
-- **Email address for alerts:** Used for sync-failure notifications via OCI Notification Service.
+- **OCI:** `~/.oci/config` (DEFAULT profile)
+- **AWS:** IAM user with `s3:PutObject`; access key + secret key
+- **Email:** For sync-failure alerts via OCI Notifications
 
-## Quick Start
+## Steps
 
-### 1. Configure
+### 1. Configure tfvars
 
 ```bash
 cd infra
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: region, tenancy_ocid, compartment, aws_s3_*, aws_region, alert_email_address
 ```
 
-Example `terraform.tfvars`:
+Edit `terraform.tfvars`:
 
-```hcl
-region       = "us-ashburn-1"
-tenancy_ocid = "ocid1.tenancy.oc1..aaaa..."
+| Variable | Required |
+|----------|----------|
+| `region`, `tenancy_ocid` | ✓ |
+| `existing_compartment_id` (or `create_compartment`) | ✓ |
+| `aws_s3_bucket_name`, `aws_s3_prefix`, `aws_region` | ✓ |
+| `aws_access_key`, `aws_secret_key` (if `create_aws_secrets = true`) | ✓ |
+| `alert_email_address` | ✓ |
+| `oci_api_key_fingerprint`, `oci_api_private_key` | After step 3 |
 
-create_compartment      = false
-existing_compartment_id = "ocid1.compartment.oc1..aaaa..."
-create_vcn              = true
-create_subnet           = true
-create_nat_gateway      = true
-create_service_gateway  = true
-create_vault            = true
-create_key              = true
-create_aws_secrets      = true
-
-aws_access_key = "AKIA..."
-aws_secret_key = "your-secret"
-aws_s3_bucket_name = "my-aws-cost-reports"
-aws_s3_prefix      = "oci-sync"
-aws_region         = "us-east-1"
-
-# Email alerts when sync fails
-enable_monitoring   = true
-alert_email_address = "you@example.com"
-```
-
-**Greenfield** (create all): `create_vcn = true`, `create_vault = true`, etc.  
-**Brownfield** (use existing): `create_* = false`, set `existing_*_id` for each resource.
-
-### 2. Deploy
+### 2. First deploy
 
 ```bash
 tofu init
 tofu apply
 ```
 
-### 3. Add AWS secrets (required)
+Creates VM, IAM user `rclone-sync`, vault, and policies. OCI API key can be empty initially.
 
-OpenTofu creates placeholder secrets. After apply:
+### 3. Add OCI API key
 
-1. **OCI Console → Identity & Security → Vault** → open `oci-aws-sync-vault`
-2. **Secrets** → `oci-aws-sync-aws-access-key` → Create New Version → paste AWS Access Key
-3. Repeat for `oci-aws-sync-aws-secret-key` with AWS Secret Key
+1. **Console** → Identity → Users → `rclone-sync` → API Keys → Add API Key
+2. Generate key pair, download private key, copy fingerprint
+3. In `terraform.tfvars`:
+   ```hcl
+   oci_api_key_fingerprint = "aa:bb:cc:dd:..."
+   oci_api_private_key     = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+   ```
+4. Run `tofu apply` to store the key in Vault
 
-### 4. Post-deployment: Confirm email subscription
+### 4. Add AWS secrets (if `create_aws_secrets = true`)
 
-**Check your inbox and confirm the OCI Subscription to receive alerts.** OCI sends a confirmation email for new notification topic subscriptions. Click the confirmation link so sync-failure alerts are delivered.
+1. **Console** → Identity & Security → Vault → `oci-aws-sync-vault`
+2. Secrets → `oci-aws-sync-aws-access-key` → Create New Version → paste key
+3. Repeat for `oci-aws-sync-aws-secret-key`
 
 ### 5. Replace VM (pick up secrets)
-
-The VM fetches AWS keys from Vault at boot (cloud-init). After you add the secret versions, force a replace so it reboots with the real keys:
 
 ```bash
 tofu taint oci_core_instance.rclone_sync && tofu apply
 ```
 
-Check logs on VM: `tail -f /var/log/rclone-sync.log` — or in **OCI Console → Logging → Logs** when `enable_monitoring = true`.
+VM reboots and fetches AWS + OCI creds from Vault on each sync.
 
-### 6. Access via bastion (optional)
+### 6. Confirm email subscription
+
+**Check inbox** — OCI sends a confirmation for the notification subscription. Click the link so alerts are delivered.
+
+### 7. Done
+
+Sync runs every 6h. Logs: `/var/log/rclone-sync.log` on VM, or OCI Console → Logging when `enable_monitoring = true`.
+
+---
+
+**Greenfield:** `create_vcn = true`, `create_vault = true`, etc.  
+**Brownfield:** `create_* = false`, set `existing_*_id` for each resource.
+
+### Access via bastion (optional)
 
 By default a bastion host is created for SSH access to the private rclone instance. Ensure your public key is at `~/.ssh/id_rsa.pub` (or set `bastion_ssh_public_key_path`).
 
@@ -161,7 +146,7 @@ Set `create_bastion = false` in tfvars if you do not need bastion access. Bastio
 | Sync failed | Check `/var/log/rclone-sync.log` on VM or OCI Logging |
 | "directory not found" (bling) | Cost reports are in tenancy **home region** — ensure `region` in tfvars matches. Reports may take 24–48h to appear. Verify policy in IAM. |
 | No email alerts | Confirm OCI Subscription in your inbox; verify `alert_email_address` in tfvars |
-| OCI permission denied | Ensure `rclone-cross-tenancy-policy` has UsageReport Define + Endorse |
+| OCI permission denied | Ensure `rclone-cross-tenancy-policy` has Define + Endorse for rclone-sync-readers group; verify OCI API key in Vault |
 | AWS permission denied | Verify IAM has `s3:PutObject` on bucket |
 | Image lookup empty | Try `instance_shape = "VM.Standard.E5.Flex"` (better availability in some regions) |
 | TLS error (macOS) | `export SSL_CERT_FILE=$(brew --prefix)/etc/ca-certificates/cert.pem` |
