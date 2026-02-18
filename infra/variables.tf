@@ -274,3 +274,43 @@ variable "alert_email_address" {
   type        = string
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# OCI API Key (for rclone - instance principal does not work for bling cost reports)
+# -----------------------------------------------------------------------------
+variable "oci_rclone_user_name" {
+  description = "Name of the IAM user for rclone sync (API key auth)"
+  type        = string
+  default     = "rclone-sync"
+}
+
+variable "oci_rclone_group_name" {
+  description = "Name of the IAM group for rclone sync user"
+  type        = string
+  default     = "rclone-sync-readers"
+}
+
+variable "create_oci_private_key_secret" {
+  description = "Create Vault secret for OCI API private key"
+  type        = bool
+  default     = true
+}
+
+variable "existing_oci_private_key_secret_id" {
+  description = "Existing Vault secret OCID for OCI API private key when create_oci_private_key_secret is false"
+  type        = string
+  default     = ""
+}
+
+variable "oci_api_key_fingerprint" {
+  description = "OCI API key fingerprint (from Console when you add API key to user)"
+  type        = string
+  default     = ""
+}
+
+variable "oci_api_private_key" {
+  description = "OCI API private key PEM content (used when create_oci_private_key_secret is true)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

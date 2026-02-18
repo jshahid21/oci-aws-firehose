@@ -2,7 +2,7 @@
 
 OCI-to-AWS Cost Report Sync — syncs Oracle Cloud Usage Reports to AWS S3 via a VM running rclone (cron every 6h).
 
-**Stack:** OpenTofu · OCI (VCN, NAT, Service Gateway, Vault, Compute) · Instance Principals · Rclone
+**Stack:** OpenTofu · OCI (VCN, NAT, Service Gateway, Vault, Compute) · API Key + Instance Principal · Rclone
 
 **Compute:** VM.Standard.E6.Flex (AMD) by default; configurable OCPUs and memory. Use VM.Standard.A1.Flex for free tier.
 
@@ -20,8 +20,8 @@ OCI-to-AWS Cost Report Sync — syncs Oracle Cloud Usage Reports to AWS S3 via a
 │  ┌─────────────────┐  ┌──────────────────┐  ┌──────────────────────────────┐   │
 │  │ Rclone          │  │ OCI Unified      │  │ Monitoring/Email Alerting     │   │
 │  │ Cron every 6h   │──│ Agent            │  │ On sync failure → publish to  │   │
-│  │ Instance        │  │ /var/log/        │  │ OCI Notification Topic →      │   │
-│  │ Principal auth  │  │ rclone-sync.log  │  │ email to alert_email_address  │   │
+│  │ API key auth    │  │ rclone-sync.log  │  │ OCI Notification Topic →      │   │
+│  │ (Vault: IP)     │  │                  │  │ email to alert_email_address  │   │
 │  └────────┬────────┘  └────────┬─────────┘  └──────────────────────────────┘   │
 └───────────┼────────────────────┼────────────────────────────────────────────────┘
             │                    │
@@ -42,10 +42,11 @@ OCI-to-AWS Cost Report Sync — syncs Oracle Cloud Usage Reports to AWS S3 via a
 1. Prerequisites     → OpenTofu, OCI config (~/.oci/config), AWS IAM keys, email for alerts
 2. Configure        → Copy tfvars.example, set region, tenancy, compartment, S3 bucket, alert_email_address
 3. Deploy           → tofu init && tofu apply
-4. Add secrets      → OCI Console: paste AWS keys into Vault secrets
-5. Confirm alerts   → Check inbox and confirm OCI Subscription to receive alerts
-6. Replace VM      → tofu taint instance && tofu apply (picks up keys)
-7. Done             → Sync runs every 6h; logs in OCI Console or /var/log/rclone-sync.log
+4. Add OCI API key  → Add API key to rclone-sync user in Console; set oci_api_key_fingerprint + oci_api_private_key in tfvars; tofu apply
+5. Add secrets      → OCI Console: paste AWS keys into Vault secrets (if create_aws_secrets = true)
+6. Confirm alerts   → Check inbox and confirm OCI Subscription to receive alerts
+7. Replace VM       → tofu taint instance && tofu apply (picks up keys)
+8. Done             → Sync runs every 6h; logs in OCI Console or /var/log/rclone-sync.log
 ```
 
 ## Prerequisites
@@ -148,7 +149,7 @@ Set `create_bastion = false` in tfvars if you do not need bastion access. Bastio
 
 ---
 
-**Note:** Cost Reports use bucket = Tenancy OCID in Oracle's `bling` namespace. No extra config needed.
+**Note:** Cost Reports use bucket = Tenancy OCID in Oracle's `bling` namespace. Rclone uses **API key auth** (instance principal does not work for bling); credentials are stored in Vault and fetched at sync time.
 
 ## Troubleshooting
 

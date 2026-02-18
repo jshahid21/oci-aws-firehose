@@ -26,8 +26,13 @@ output "bastion_ssh_command" {
 }
 
 output "dynamic_group_name" {
-  description = "Dynamic Group name for Instance Principals"
+  description = "Dynamic Group name (Vault secret read via instance principal)"
   value       = oci_identity_dynamic_group.rclone_dg.name
+}
+
+output "rclone_user_id" {
+  description = "OCI IAM User OCID for rclone sync - add API key to this user in Console"
+  value       = oci_identity_user.rclone_user.id
 }
 
 output "compartment_id" {

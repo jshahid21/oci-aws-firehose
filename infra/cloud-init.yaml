@@ -18,7 +18,9 @@ write_files:
     content: |
       [oci_usage]
       type = oracleobjectstorage
-      provider = instance_principal_auth
+      provider = user_principal_auth
+      config_file = /root/.oci/config
+      config_profile = rclone
       namespace = bling
       compartment = ${tenancy_ocid}
       region = ${region}
@@ -37,8 +39,20 @@ write_files:
       set -e
       export PATH="/usr/local/bin:$PATH"
       export RCLONE_CONFIG="/root/.config/rclone/rclone.conf"
+      export OCI_CLI_AUTH=instance_principal
+
+      # Fetch AWS creds from Vault (instance principal)
       export AWS_ACCESS_KEY_ID=$(oci secrets secret-bundle get --secret-id ${aws_access_key_secret_id} --query 'data.secret-bundle-content.content' --raw-output 2>/dev/null | base64 -d)
       export AWS_SECRET_ACCESS_KEY=$(oci secrets secret-bundle get --secret-id ${aws_secret_key_secret_id} --query 'data.secret-bundle-content.content' --raw-output 2>/dev/null | base64 -d)
+
+      # Fetch OCI API key from Vault and write config (instance principal)
+      mkdir -p /root/.oci
+      oci secrets secret-bundle get --secret-id ${oci_private_key_secret_id} --query 'data.secret-bundle-content.content' --raw-output 2>/dev/null | base64 -d > /root/.oci/key.pem
+      chmod 600 /root/.oci/key.pem
+      printf '[rclone]\nuser = %s\nfingerprint = %s\ntenancy = %s\nregion = %s\nkey_file = /root/.oci/key.pem\n' \
+        '${oci_user_ocid}' '${oci_api_key_fingerprint}' '${tenancy_ocid}' '${region}' > /root/.oci/config
+      chmod 600 /root/.oci/config
+
       if ! /usr/local/bin/rclone sync oci_usage:${tenancy_ocid} aws_s3:${aws_s3_bucket_name}/${aws_s3_prefix} --log-file=/var/log/rclone-sync.log --checksum --s3-chunk-size 64M --s3-upload-concurrency 8 -v; then
         if [ -n "${alert_topic_id}" ]; then
           oci ons notification publish --topic-id "${alert_topic_id}" --body "Rclone sync FAILED. Check /var/log/rclone-sync.log on $(hostname)" 2>/dev/null || true

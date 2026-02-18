@@ -22,6 +22,7 @@ Edit `terraform.tfvars`:
 - Vault: `create_vault`, `create_key`, `create_aws_secrets` (or existing IDs)
 - **`aws_s3_bucket_name`**, **`aws_s3_prefix`**, **`aws_region`**
 - If `create_aws_secrets = true`, provide `aws_access_key` and `aws_secret_key`
+- **OCI API Key:** Cost reports use API key auth (instance principal does not work for bling). Provide `oci_api_key_fingerprint` and `oci_api_private_key` after adding an API key to the rclone-sync user.
 
 ### 2. Apply
 
@@ -31,14 +32,11 @@ tofu plan
 tofu apply
 ```
 
-### 3. Post-Apply
+### 3. OCI API Key (two-step)
 
-1. **AWS Keys:** If you created secrets but did not provide keys in tfvars, add the secret content via OCI Console (Vault → Secrets).
-
-2. **Cross-Tenancy:** The policy in `iam.tf` uses:
-   - `Define tenancy UsageReport as ocid1.tenancy.oc1..aaaaaaaaned4fkpkisbwjlr56u7cj63lf3wffbilvqknstgtvzub7vhqkggq`
-   - `Endorse dynamic-group rclone-dg to read objects/buckets in tenancy UsageReport`  
-   These policies must be effective in the Usage Report tenancy. If provisioning fails due to cross-tenancy policy limitations, create the endorse policies manually in the Usage Report tenancy.
+1. **First apply** creates the `rclone-sync` IAM user and group. You can use empty `oci_api_private_key` initially.
+2. **Add API key:** Identity → Users → rclone-sync → API Keys → Add API Key. Generate a key pair, download the private key, copy the fingerprint.
+3. **Second apply:** Add `oci_api_key_fingerprint` and `oci_api_private_key` (PEM content) to tfvars, run `tofu apply` again to store the key in Vault. The next sync (cron or manual) will use it.
 
 ### 4. Verify
 
